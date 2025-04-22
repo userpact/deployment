@@ -1,0 +1,66 @@
+version: "3.8"
+
+name: "userpact-staging"
+services:
+  postgres:
+    image: timescale/timescaledb-ha:pg17
+    container_name: postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: ${POSTGRES_DB:-userpact}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+      start_period: 15s
+
+  server:
+    image: ghcr.io/userpact/userpact-server:${TAG:-latest}
+    ports:
+      - "${SERVER_PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-userpact}
+      - PORT=3000
+      - NODE_ENV=production
+      # - SSO_URL=http://localhost:8080/realms/userpact/.well-known/openid-configuration
+      # - SSO_CLIENT_ID=${SSO_CLIENT_ID:-userpact}
+      # - SSO_CLIENT_SECRET=${SSO_CLIENT_SECRET:-changeme}
+      # - SSO_ORGANIZATION=${SSO_ORGANIZATION:-userpact}
+      # - MISTRAL_API_KEY=${MISTRAL_API_KEY:-changeme}
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/health || exit 1"]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+      start_period: 15s
+
+  client:
+    image: ghcr.io/userpact/userpact-client:${TAG:-latest}
+    ports:
+      - "${WEB_PORT:-80}:80"
+    depends_on:
+      - server
+    environment:
+      - USERPACT_API_URL=${USERPACT_API_URL:-http://localhost:3000}
+      - AUTH_PROVIDERS=${AUTH_PROVIDERS:-credentials}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost/health || exit 1"]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  postgres_data:
