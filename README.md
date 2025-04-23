@@ -8,8 +8,11 @@
 ```bash
 cd docker
 cp .env.example .env
-docker compose up
 ```
+
+Then update the .env with at least the mistral ai api key
+
+then run it via `docker compose up`
 
 ### Helm chart
 
